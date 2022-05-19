@@ -1,11 +1,9 @@
 #include <DHT.h>         // Definição da biblioteca DHT
 #include <TFT_eSPI.h>    // Definição da biblioteca referente ao display
 #include <SPI.h>         // Definição da biblioteca referente ao display
-#include <Preferences.h> // Definição da biblioteca usada para guardar dados
+#include <Preferences.h> // Definição da biblioteca para armazenamento dos dados
 
-Preferences preferences;
-float showmax;
-float showmin;
+Preferences preferences; // Criação da váriavel com o tipo referecia
 
 // Definição de pino do DHT 11 e tipo de sensor
 #define DHTPIN 17
@@ -18,7 +16,10 @@ float showmin;
 DHT dht(DHTPIN, DHTTYPE);
 TFT_eSPI tft = TFT_eSPI();
 
-bool useFahrenheit = false;   // Default to Fahrenheit
+// uso no código
+int variavel;
+
+bool useFahrenheit = true;    // Default to Fahrenheit
 bool showTemp = true;         // Default to Temp / Humidity
 long lastDebounceButton1 = 0; // Holds Button1 last debounce
 long lastDebounceButton2 = 0; // Holds Button2 last debounce
@@ -61,25 +62,27 @@ void IRAM_ATTR toggleButton2()
 // What to display if showTemp = true
 void showScrn1()
 {
-  float t = showmax;
-  float h = showmin;
+  float t = dht.readTemperature(useFahrenheit);
+  float h = dht.readHumidity();
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
   tft.setCursor(0, 30);
   tft.setFreeFont(&Orbitron_Light_24);
-  tft.println("Max     Min");
+  tft.println("Temp     Humidity");
   tft.drawLine(0, 35, 250, 35, TFT_BLUE);
   tft.setCursor(0, 60);
   tft.print(t);
-  tft.print(F("c"));
+  if (useFahrenheit)
+  {
+    tft.print(F("f"));
+  }
+  else
+  {
+    tft.print(F("c"));
+  }
   tft.setCursor(130, 60);
   tft.print(h);
-  tft.print(F("c"));
-  tft.drawLine(0, 75, 250, 75, TFT_RED);
-  tft.setCursor(0, 100);
-  tft.println("Atual");
-  tft.print(dht.readTemperature());
-  tft.print(F("c"));
+  tft.print(F("%"));
 };
 
 // What to display if showTemp = false
@@ -92,12 +95,12 @@ void showScrn2()
   tft.setTextColor(TFT_RED, TFT_BLACK);
   tft.setCursor(50, 30);
   tft.setFreeFont(&Orbitron_Light_24);
-  tft.println("Heat Index");
+  tft.println("Show Temp");
   tft.drawLine(0, 35, 250, 35, TFT_BLUE);
   tft.setFreeFont(&Orbitron_Light_32);
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
   tft.setCursor(60, 100);
-  tft.print(hi);
+  tft.print(preferences.getFloat("maxtemp"));
   if (useFahrenheit)
   {
     tft.print(F("f"));
@@ -108,37 +111,20 @@ void showScrn2()
   }
 };
 
-void preference(float newValue)
+void MudaPreference(int variavel, float NovoValor)
 {
-  preferences.begin("temperaturas", false);
-
-  // Definindo variaveis CORIGGIRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRr
-  float maxtemp = preferences.getFloat("maxtemp", 21);
-  float mintemp = preferences.getFloat("mintemp", 20);
-
-  // Trocando dado
-  if (newValue < mintemp)
+  switch (variavel)
   {
-    Serial.printf("entrou1");
-    preferences.putFloat("mintemp", newValue);
+  case 0:
+    preferences.putUInt("maxtemp", NovoValor);
+    break;
+  case 1:
+    preferences.putUInt("mintemp", NovoValor);
+    break;
+
+  default:
+    break;
   }
-  else if (newValue > maxtemp)
-  {
-    Serial.printf("entrou2");
-    preferences.putFloat("maxtemp", newValue);
-  }
-
-  // Para exibir os dados
-  showmin = mintemp;
-  showmax = maxtemp;
-
-  // Imprimindo no serial print
-  // Serial.printf("Valor maxima: %.1f\n", maxtemp);
-  // Serial.printf("Valor minima: %.1f\n", mintemp);
-
-  // preferences.clear(); //Limpa os dados
-  // Close the Preferences
-  preferences.end();
 }
 
 void setup()
@@ -146,21 +132,25 @@ void setup()
   Serial.begin(115200);
   pinMode(BUTTON1PIN, INPUT);
   pinMode(BUTTON2PIN, INPUT);
-  // attachInterrupt(BUTTON1PIN, toggleButton1, FALLING);
-  // attachInterrupt(BUTTON2PIN, toggleButton2, FALLING);
+  attachInterrupt(BUTTON1PIN, toggleButton1, FALLING);
+  attachInterrupt(BUTTON2PIN, toggleButton2, FALLING);
+  preferences.begin("mypreference", false);
   dht.begin();
   tft.begin();
   tft.setRotation(1); // Landscape
 
-  // Restart ESP
-  // ESP.restart();
-}
+  float maxtemp = preferences.getFloat("maxtemp", 50.00);
+  float mintemp = preferences.getFloat("mintemp", 10.00);
+  Serial.printf("%.1f", maxtemp);
+  Serial.printf("%.1f", mintemp);
+  preferences.end();
+};
 
 void loop()
 {
-  float temp = dht.readTemperature();
-  preference(temp);
-  // Serial.printf("temperatura sendor: %.1f\n", temp);
+  // Serial.printf("Valor maxima: %.2f\n", preferences.getFloat("maxtemp", 0));
+  // Serial.printf("Valor minima: %.2f\n", preferences.getFloat("mintemp", 0));
+  delay(1000); // Required by this device to function properly
   if (showTemp)
   {
     showScrn1();
@@ -168,6 +158,5 @@ void loop()
   else
   {
     showScrn2();
-  }            // Heat Index
-  delay(5000); // Required by this device to function properly
-}
+  } // Heat Index
+};
